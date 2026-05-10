@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>S3 Vault — File Storage</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #F4F8F2;
+      --surface:      #FFFFFF;
+      --green:        #3A7D22;
+      --green-dark:   #2A5C18;
+      --green-light:  #EBF5E5;
+      --green-mid:    #BDD9AD;
+      --green-ultra:  #F0F7EC;
+      --text:         #192B14;
+      --text-mid:     #4A6B40;
+      --text-dim:     #8AAB7E;
+      --border:       #D0E5C5;
+      --border-dark:  #A8C99A;
+      --danger:       #D63B3B;
+      --danger-light: #FEF0F0;
+      --shadow-sm:    0 1px 3px rgba(42,92,24,0.08), 0 1px 2px rgba(42,92,24,0.05);
+      --shadow-md:    0 4px 16px rgba(42,92,24,0.10), 0 2px 6px rgba(42,92,24,0.06);
+      --shadow-lg:    0 12px 40px rgba(42,92,24,0.14), 0 4px 12px rgba(42,92,24,0.08);
+      --display:      'Syne', sans-serif;
+      --mono:         'IBM Plex Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--display);
+      min-height: 100vh;
+    }
+
+    /* Subtle dot grid background */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, var(--green-mid) 1px, transparent 1px);
+      background-size: 28px 28px;
+      opacity: 0.35;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 28px 80px;
+    }
+
+    /* ── HEADER ── */
+    header {
+      padding: 40px 0 36px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--green);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(58,125,34,0.35);
+      flex-shrink: 0;
+    }
+
+    .brand-icon svg {
+      width: 26px;
+      height: 26px;
+    }
+
+    .brand-text h1 {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .brand-text p {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      margin-top: 4px;
+      text-transform: uppercase;
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .stat-chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s;
+    }
+
+    .stat-chip:hover { box-shadow: var(--shadow-md); }
+
+    .stat-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+    }
+
+    .stat-dot.pulse {
+      animation: blink 2s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(58,125,34,0.4); }
+      50% { opacity: 0.6; box-shadow: 0 0 0 4px rgba(58,125,34,0); }
+    }
+
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-mid);
+      white-space: nowrap;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--green-dark);
+    }
+
+    /* ── DIVIDER ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin-bottom: 40px;
+    }
+
+    /* ── SECTION TITLE ── */
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .section-num {
+      width: 24px;
+      height: 24px;
+      background: var(--green);
+      color: #fff;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .section-title h2 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      color: var(--text);
+    }
+
+    /* ── UPLOAD ZONE ── */
+    .upload-section { margin-bottom: 44px; }
+
+    .drop-zone {
+      background: var(--surface);
+      border: 2px dashed var(--border-dark);
+      border-radius: 16px;
+      padding: 56px 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      position: relative;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .drop-zone::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 120%, rgba(58,125,34,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .drop-zone:hover {
+      border-color: var(--green);
+      border-style: solid;
+      box-shadow: var(--shadow-md), 0 0 0 4px rgba(58,125,34,0.08);
+      transform: translateY(-1px);
+    }
+
+    .drop-zone.drag-over {
+      border-color: var(--green);
+      border-style: solid;
+      background: var(--green-ultra);
+      box-shadow: var(--shadow-lg), 0 0 0 6px rgba(58,125,34,0.12);
+      transform: translateY(-2px) scale(1.005);
+    }
+
+    .drop-icon-wrap {
+      width: 64px;
+      height: 64px;
+      background: var(--green-light);
+      border-radius: 14px;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.22s;
+    }
+
+    .drop-zone:hover .drop-icon-wrap,
+    .drop-zone.drag-over .drop-icon-wrap {
+      background: var(--green);
+      transform: scale(1.08);
+      box-shadow: 0 6px 20px rgba(58,125,34,0.3);
+    }
+
+    .drop-icon-wrap svg {
+      width: 30px;
+      height: 30px;
+      transition: all 0.22s;
+    }
+
+    .drop-zone:hover .drop-icon-wrap svg path,
+    .drop-zone:hover .drop-icon-wrap svg line,
+    .drop-zone.drag-over .drop-icon-wrap svg path,
+    .drop-zone.drag-over .drop-icon-wrap svg line {
+      stroke: #fff;
+    }
+
+    .drop-main {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .drop-main span { color: var(--green); }
+
+    .drop-sub {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 1px;
+    }
+
+    #fileInput { display: none; }
+
+    /* ── PROGRESS ── */
+    .progress-wrap {
+      margin-top: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+      display: none;
+      animation: fadeUp 0.2s ease;
+    }
+
+    .progress-wrap.visible { display: block; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .progress-name {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text);
+      font-weight: 500;
+      max-width: 60%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .progress-pct {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--green);
+    }
+
+    .progress-track {
+      height: 4px;
+      background: var(--green-light);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--green-dark), var(--green));
+      width: 0%;
+      border-radius: 4px;
+      transition: width 0.25s ease;
+    }
+
+    .upload-msg {
+      font-family: var(--mono);
+      font-size: 11px;
+      margin-top: 8px;
+      min-height: 16px;
+      letter-spacing: 0.3px;
+    }
+
+    .upload-msg.success { color: var(--green); }
+    .upload-msg.error   { color: var(--danger); }
+    .upload-msg.loading { color: var(--text-dim); }
+
+    /* ── FILE LIST HEADER ── */
+    .files-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .refresh-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-mid);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      padding: 7px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.15s;
+      box-shadow: var(--shadow-sm);
+      font-weight: 500;
+    }
+
+    .refresh-btn:hover {
+      border-color: var(--green);
+      color: var(--green);
+      background: var(--green-ultra);
+    }
+
+    /* ── FILE CARDS ── */
+    .file-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .file-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.18s ease;
+      animation: fadeUp 0.25s ease both;
+    }
+
+    .file-card:hover {
+      border-color: var(--green-mid);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    .file-ext-badge {
+      width: 46px;
+      height: 46px;
+      background: var(--green-light);
+      border: 1px solid var(--green-mid);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .file-ext-badge span {
+      font-family: var(--mono);
+      font-size: 9px;
+      font-weight: 500;
+      color: var(--green-dark);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .file-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .file-card-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.3;
+    }
+
+    .file-card-meta {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 3px;
+      letter-spacing: 0.3px;
+    }
+
+    .file-card-meta span {
+      color: var(--text-mid);
+    }
+
+    .file-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .btn {
+      font-family: var(--display);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1.5px solid transparent;
+      transition: all 0.15s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .btn-download {
+      background: var(--green-light);
+      border-color: var(--green-mid);
+      color: var(--green-dark);
+    }
+
+    .btn-download:hover {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(58,125,34,0.3);
+    }
+
+    .btn-delete {
+      background: transparent;
+      border-color: var(--border);
+      color: var(--text-dim);
+    }
+
+    .btn-delete:hover {
+      background: var(--danger-light);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    /* ── EMPTY / LOADING ── */
+    .state-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 56px 40px;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .state-box p {
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 2px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    .loading-dots::after {
+      content: "";
+      animation: dots 1.2s steps(4, end) infinite;
+    }
+
+    @keyframes dots {
+      0%  { content: ""; }
+      25% { content: "."; }
+      50% { content: ".."; }
+      75% { content: "..."; }
+    }
+
+    /* ── TOAST ── */
+    .toast-wrap {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 999;
+    }
+
+    .toast {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 12px 18px;
+      border-radius: 10px;
+      border: 1px solid;
+      max-width: 300px;
+      animation: slideRight 0.2s ease;
+      box-shadow: var(--shadow-md);
+    }
+
+    .toast.success {
+      background: #F0FAF0;
+      border-color: var(--green-mid);
+      color: var(--green-dark);
+    }
+
+    .toast.error {
+      background: var(--danger-light);
+      border-color: #f5b7b7;
+      color: var(--danger);
+    }
+
+    .toast.info {
+      background: var(--surface);
+      border-color: var(--border);
+      color: var(--text-mid);
+    }
+
+    @keyframes slideRight {
+      from { opacity: 0; transform: translateX(16px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes fadeOut {
+      to { opacity: 0; transform: translateX(16px); }
+    }
+
+    /* ── STAGGER ANIMATION ── */
+    .file-card:nth-child(1)  { animation-delay: 0ms; }
+    .file-card:nth-child(2)  { animation-delay: 50ms; }
+    .file-card:nth-child(3)  { animation-delay: 100ms; }
+    .file-card:nth-child(4)  { animation-delay: 150ms; }
+    .file-card:nth-child(5)  { animation-delay: 200ms; }
+    .file-card:nth-child(6)  { animation-delay: 250ms; }
+    .file-card:nth-child(7)  { animation-delay: 300ms; }
+    .file-card:nth-child(8)  { animation-delay: 350ms; }
+    .file-card:nth-child(9)  { animation-delay: 400ms; }
+    .file-card:nth-child(10) { animation-delay: 450ms; }
+
+    @media (max-width: 600px) {
+      .file-card { flex-wrap: wrap; }
+      .file-actions { width: 100%; justify-content: flex-end; }
+      .stats-bar { display: none; }
+      .brand-text h1 { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <!-- HEADER -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 3L3 7.5V18.5L13 23L23 18.5V7.5L13 3Z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M3 7.5L13 12L23 7.5" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M13 12V23" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>S3 Vault</h1>
+          <p>Amazon S3 · File Storage</p>
+        </div>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat-chip">
+          <div class="stat-dot pulse"></div>
+          <span class="stat-label">Online</span>
+        </div>
+        <div class="stat-chip">
+          <span class="stat-label">Files:</span>
+          <span class="stat-value" id="statCount">—</span>
+        </div>
+        <div class="stat-chip">
+          <span class="stat-label">Total:</span>
+          <span class="stat-value" id="statSize">—</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="divider"></div>
+
+    <!-- UPLOAD -->
+    <section class="upload-section">
+      <div class="section-title">
+        <div class="section-num">1</div>
+        <h2>Upload File</h2>
+      </div>
+
+      <div class="drop-zone" id="dropZone">
+        <div class="drop-icon-wrap">
+          <svg viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M15 20V10M15 10L10 15M15 10L20 15" stroke="#3A7D22" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M6 22C4.3 20.8 3 18.8 3 16.5C3 12.9 5.9 10 9.5 9.3C9.5 4.8 13.1 1 17.5 1C21.1 1 24.1 3.3 25.4 6.5C28.8 6.8 31.5 9.7 31.5 13.2C31.5 15.4 30.4 17.3 28.8 18.5" stroke="#3A7D22" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="9" y1="26" x2="21" y2="26" stroke="#3A7D22" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <p class="drop-main">Drop file here or <span>click to browse</span></p>
+        <p class="drop-sub">Maximum file size — 50 MB</p>
+      </div>
+
+      <input type="file" id="fileInput" />
+
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-meta">
+          <span class="progress-name" id="progressName">—</span>
+          <span class="progress-pct" id="progressPct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="upload-msg" id="uploadMsg"></div>
+      </div>
+    </section>
+
+    <!-- FILES -->
+    <section>
+      <div class="files-header">
+        <div class="section-title" style="margin-bottom:0">
+          <div class="section-num">2</div>
+          <h2>Files in Bucket</h2>
+        </div>
+        <button class="refresh-btn" onclick="loadFiles()">↺ Refresh</button>
+      </div>
+
+      <div id="fileGrid" class="file-grid">
+        <div class="state-box">
+          <p class="loading-dots">Loading files</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="toast-wrap" id="toasts"></div>
+
+  <script>
+    const dropZone    = document.getElementById("dropZone");
+    const fileInput   = document.getElementById("fileInput");
+    const progressWrap= document.getElementById("progressWrap");
+    const progressFill= document.getElementById("progressFill");
+    const progressPct = document.getElementById("progressPct");
+    const progressName= document.getElementById("progressName");
+    const uploadMsg   = document.getElementById("uploadMsg");
+    const fileGrid    = document.getElementById("fileGrid");
+    const statCount   = document.getElementById("statCount");
+    const statSize    = document.getElementById("statSize");
+
+    // Drag & Drop
+    dropZone.addEventListener("click", () => fileInput.click());
+    dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+      if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files[0]) uploadFile(fileInput.files[0]);
+    });
+
+    function uploadFile(file) {
+      const form = new FormData();
+      form.append("file", file);
+
+      progressWrap.classList.add("visible");
+      progressName.textContent = file.name;
+      setProgress(0, "loading", "Uploading...");
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/upload");
+
+      xhr.upload.addEventListener("progress", e => {
+        if (e.lengthComputable) {
+          const p = Math.round(e.loaded / e.total * 100);
+          setProgress(p, "loading", `Uploading... ${p}%`);
+        }
+      });
+
+      xhr.addEventListener("load", () => {
+        if (xhr.status === 200) {
+          setProgress(100, "success", "Upload complete!");
+          toast("File uploaded successfully.", "success");
+          setTimeout(() => {
+            progressWrap.classList.remove("visible");
+            fileInput.value = "";
+            loadFiles();
+          }, 2000);
+        } else {
+          const err = tryParse(xhr.responseText)?.error || "Upload failed.";
+          setProgress(0, "error", "Error: " + err);
+          toast(err, "error");
+        }
+      });
+
+      xhr.addEventListener("error", () => {
+        setProgress(0, "error", "Network error.");
+        toast("Network error. Is the server running?", "error");
+      });
+
+      xhr.send(form);
+    }
+
+    function setProgress(pct, type, msg) {
+      progressFill.style.width = pct + "%";
+      progressPct.textContent = pct + "%";
+      uploadMsg.textContent = msg;
+      uploadMsg.className = "upload-msg " + type;
+    }
+
+    async function loadFiles() {
+      fileGrid.innerHTML = `<div class="state-box"><p class="loading-dots">Loading files</p></div>`;
+      statCount.textContent = "—";
+      statSize.textContent = "—";
+
+      try {
+        const res   = await fetch("/files");
+        const files = await res.json();
+
+        if (!Array.isArray(files) || files.length === 0) {
+          fileGrid.innerHTML = `<div class="state-box"><p>No files in bucket yet</p></div>`;
+          statCount.textContent = "0";
+          statSize.textContent = "0 B";
+          return;
+        }
+
+        // Sort newest first
+        files.sort((a, b) => new Date(b.lastModified) - new Date(a.lastModified));
+
+        statCount.textContent = files.length;
+        const total = files.reduce((s, f) => s + f.size, 0);
+        statSize.textContent = fmtSize(total);
+
+        fileGrid.innerHTML = files.map((f, i) => {
+          const ext   = f.name.split(".").pop().toUpperCase().slice(0, 5);
+          const name  = f.name.includes("/") ? f.name.split("/").pop() : f.name;
+          const keyEnc = encodeURIComponent(f.key);
+          return `
+            <div class="file-card">
+              <div class="file-ext-badge">
+                <span>${escHtml(ext)}</span>
+              </div>
+              <div class="file-info">
+                <div class="file-card-name" title="${escHtml(f.name)}">${escHtml(name)}</div>
+                <div class="file-card-meta">
+                  <span>${fmtSize(f.size)}</span>
+                  &nbsp;·&nbsp;
+                  ${fmtDate(f.lastModified)}
+                </div>
+              </div>
+              <div class="file-actions">
+                <button class="btn btn-download" onclick="downloadFile('${keyEnc}')">↓ Download</button>
+                <button class="btn btn-delete"   onclick="deleteFile('${keyEnc}', this)">✕</button>
+              </div>
+            </div>`;
+        }).join("");
+
+      } catch {
+        fileGrid.innerHTML = `<div class="state-box"><p>Failed to connect to server</p></div>`;
+        toast("Could not reach server.", "error");
+      }
+    }
+
+    async function downloadFile(keyEnc) {
+      toast("Generating link...", "info");
+      try {
+        const res = await fetch(`/files/${keyEnc}/url`);
+        const { url, error } = await res.json();
+        if (error) throw new Error(error);
+        window.open(url, "_blank");
+      } catch (e) {
+        toast("Could not generate download link.", "error");
+      }
+    }
+
+    async function deleteFile(keyEnc, btn) {
+      if (!confirm("Delete this file from S3? This cannot be undone.")) return;
+      const orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "...";
+      try {
+        const res = await fetch(`/files/${keyEnc}`, { method: "DELETE" });
+        if (res.ok) {
+          toast("File deleted.", "success");
+          loadFiles();
+        } else {
+          const { error } = await res.json();
+          throw new Error(error);
+        }
+      } catch (e) {
+        toast(e.message || "Delete failed.", "error");
+        btn.disabled = false;
+        btn.textContent = orig;
+      }
+    }
+
+    function toast(msg, type = "info") {
+      const el = document.createElement("div");
+      el.className = `toast ${type}`;
+      el.textContent = msg;
+      document.getElementById("toasts").appendChild(el);
+      setTimeout(() => {
+        el.style.animation = "fadeOut 0.3s ease forwards";
+        setTimeout(() => el.remove(), 300);
+      }, 3500);
+    }
+
+    function fmtSize(b) {
+      if (!b) return "0 B";
+      const u = ["B","KB","MB","GB"];
+      const i = Math.floor(Math.log(b) / Math.log(1024));
+      return (b / Math.pow(1024, i)).toFixed(1) + " " + u[i];
+    }
+
+    function fmtDate(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString("pt-BR") + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function escHtml(s) {
+      return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    function tryParse(s) { try { return JSON.parse(s); } catch { return null; } }
+
+    loadFiles();
+  </script>
+</body>
+</html>
